@@ -51,6 +51,7 @@ var build_panel: PanelContainer
 var build_vbox: VBoxContainer
 var build_cash_label: Label
 var _house_nodes: Dictionary = {}
+var _owner_markers: Dictionary = {}
 
 func _ready() -> void:
 	state = GameState.new()
@@ -154,16 +155,17 @@ func _build_board() -> void:
 					_tile_world(s.index) + Vector3(0, 0.02, -SPACING * 0.33))
 				add_child(band)
 
+		# Clean default font, white with a strong dark outline so names stay
+		# readable on every tile colour (dark stations, chance, etc.).
 		var label := Label3D.new()
 		label.text = _tile_label(s)
-		label.pixel_size = 0.0045
-		label.font_size = 44
-		var lf := UITheme.font()
-		if lf != null:
-			label.font = lf
-		label.modulate = Color.BLACK
+		label.pixel_size = 0.0052
+		label.font_size = 60
+		label.modulate = Color.WHITE
+		label.outline_size = 18
+		label.outline_modulate = Color(0, 0, 0, 0.92)
 		label.rotation_degrees = Vector3(-90, 0, 0)
-		label.position = _tile_world(s.index) + Vector3(0, 0.12, 0)
+		label.position = _tile_world(s.index) + Vector3(0, 0.13, 0)
 		add_child(label)
 
 func _tile_color(s: SpaceData) -> Color:
@@ -706,6 +708,22 @@ func _refresh_houses(idx: int) -> void:
 			cont.add_child(_box(Vector3(0.11, 0.14, 0.11), Color("#2e7d32"), base + Vector3(x, 0.07, 0)))
 	_house_nodes[idx] = cont
 
+## Colored strip in the owner's token colour so everyone can see who owns a tile.
+func _refresh_owner_marker(idx: int) -> void:
+	if _owner_markers.has(idx):
+		_owner_markers[idx].queue_free()
+		_owner_markers.erase(idx)
+	var owner := state.owner_of(idx)
+	if owner < 0:
+		return
+	var p := state.player_by_id(owner)
+	if p == null:
+		return
+	var marker := _box(Vector3(SPACING * 0.84, 0.07, 0.18), p.token_color,
+		_tile_world(idx) + Vector3(0, 0.09, SPACING * 0.30))
+	add_child(marker)
+	_owner_markers[idx] = marker
+
 func _update_hud() -> void:
 	var cur := state.current_player()
 	turn_label.text = "%s  —  $%d" % [cur.name, cur.cash]
@@ -878,6 +896,7 @@ func _on_buy_pressed() -> void:
 	if pending_buy_index >= 0:
 		state.buy(p, pending_buy_index)
 		Sfx.play("cash")
+		_refresh_owner_marker(pending_buy_index)
 		_msg("%s bought %s." % [p.name, state.board.get_space(pending_buy_index).display_name])
 	_finish_buy(p)
 
@@ -920,6 +939,7 @@ func _declare_bankrupt(p: Player, creditor: Player) -> void:
 			ps.houses = 0
 			ps.mortgaged = false
 			_refresh_houses(idx)
+			_refresh_owner_marker(idx)
 	p.owned.clear()
 	if tokens.has(p.id):
 		tokens[p.id].visible = false
