@@ -28,7 +28,7 @@ func setup(num: int, names: Array, randomize_seed: bool = true) -> void:
 	for i in num:
 		var nm: String = String(names[i]) if i < names.size() and String(names[i]) != "" else "Player %d" % (i + 1)
 		var p := Player.new(i, nm, board.starting_cash)
-		p.token_color = GameConfig.TOKEN_COLORS[i % GameConfig.TOKEN_COLORS.size()]
+		p.token_color = GameConfig.token_for_player(i).color
 		players.append(p)
 	props.clear()
 	for s in board.spaces:

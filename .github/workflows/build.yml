@@ -93,11 +93,13 @@ jobs:
         env:
           HOME: /root # barichello image bakes templates/keystore/Java SDK under /root
         run: |
-          echo "--- export templates present? ---"
-          ls -la /root/.local/share/godot/export_templates/ 2>/dev/null || echo "(none under /root)"
+          set -o pipefail
           mkdir -p build/android
           godot --headless --path . --verbose \
-            --export-debug "Android" build/android/IndiaCities.apk
+            --export-debug "Android" build/android/IndiaCities.apk 2>&1 | tee export.log
+          if grep -qE "Parse Error|Compile Error|Failed to load script|Failed to instantiate" export.log; then
+            echo "::error::GDScript compile/load error during export (see log above)"; exit 1
+          fi
           ls -lh build/android
 
       - name: Upload APK artifact

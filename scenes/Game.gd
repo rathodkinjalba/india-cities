@@ -292,6 +292,8 @@ func _focus_tile(idx: int) -> void:
 	_apply_camera()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if cam == null or state == null:
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_touches[event.index] = event.position
