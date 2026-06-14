@@ -15,7 +15,7 @@ var _chest_pos: int = 0
 var rng := RandomNumberGenerator.new()
 
 func setup(num: int, names: Array, randomize_seed: bool = true) -> void:
-	board = BoardData.load_from_json("res://data/board_classic.json")
+	board = BoardData.load_from_json("res://data/board_india.json")
 	chance = CardDeckData.load_from_json("res://data/deck_chance.json")
 	chest = CardDeckData.load_from_json("res://data/deck_chest.json")
 	if randomize_seed:

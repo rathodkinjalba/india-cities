@@ -26,7 +26,7 @@ func _ready() -> void:
 	v.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Real Estate Trading Game"
+	subtitle.text = "India Edition · 2-6 players"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 26)
 	subtitle.add_theme_color_override("font_color", Color("#cfd8dc"))
@@ -60,4 +60,5 @@ func _ready() -> void:
 func _on_start() -> void:
 	GameConfig.player_count = _count
 	GameConfig.player_names = []
-	get_tree().change_scene_to_file("res://scenes/Game.tscn")
+	GameConfig.player_tokens = []
+	get_tree().change_scene_to_file("res://scenes/TokenSelect.tscn")

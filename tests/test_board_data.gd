@@ -4,15 +4,15 @@ extends GutTest
 var board: BoardData
 
 func before_all() -> void:
-	board = BoardData.load_from_json("res://data/board_classic.json")
+	board = BoardData.load_from_json("res://data/board_india.json")
 
 func test_has_40_spaces() -> void:
 	assert_eq(board.spaces.size(), 40, "board must have exactly 40 spaces")
 
-func test_classic_names_and_economy() -> void:
-	assert_eq(board.get_space(39).display_name, "Mayfair")
-	assert_eq(board.get_space(37).display_name, "Park Lane")
-	assert_eq(board.get_space(1).display_name, "Old Kent Road")
+func test_india_names_and_economy() -> void:
+	assert_eq(board.get_space(39).display_name, "Mumbai")
+	assert_eq(board.get_space(37).display_name, "New Delhi")
+	assert_eq(board.get_space(1).display_name, "Patna")
 	assert_eq(board.go_salary, 2000)
 	assert_eq(board.starting_cash, 15000)
 	assert_eq(board.jail_fine, 500)

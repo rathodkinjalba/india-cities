@@ -1,12 +1,36 @@
 extends Node3D
-## First playable: 3D board, hopping tokens, dice, and the core turn loop.
-## Built programmatically so it runs without hand-authored scene files.
+## Playable game: 3D board with a pan/zoom/rotate camera, tumbling 3D dice,
+## themed tokens, tap-to-inspect property cards, and the core turn loop.
 
 const SPACING := 1.3
 const HOP_TIME := 0.18
+const TOKEN_Y := 0.06
+
+# Camera rig
+const CAM_BASE := Vector3(0, 13.5, 11.0)
+const ZOOM_MIN := 0.45
+const ZOOM_MAX := 2.4
+var cam: Camera3D
+var cam_pivot: Node3D
+var cam_yaw := 0.0
+var cam_zoom := 1.0
+var cam_target := Vector3.ZERO
+
+# Touch / gesture state
+var _touches: Dictionary = {}
+var _pinch_prev := -1.0
+var _twist_prev := 0.0
+var _tap_candidate := false
+var _tap_start := Vector2.ZERO
+var _last_tap_ms := 0
+var _last_tap_pos := Vector2.ZERO
+
+# Dice
+var die1: Node3D
+var die2: Node3D
 
 var state: GameState
-var tokens: Dictionary = {}          # player_id -> MeshInstance3D
+var tokens: Dictionary = {}
 var busy := false
 var pending_buy_index := -1
 var pending_double := false
@@ -19,7 +43,9 @@ var roll_button: Button
 var end_button: Button
 var buy_button: Button
 var skip_button: Button
-var player_rows: Array[Label] = []   # one cash label per player id
+var player_rows: Array[Label] = []
+var card_panel: PanelContainer
+var card_vbox: VBoxContainer
 
 func _ready() -> void:
 	state = GameState.new()
@@ -27,7 +53,9 @@ func _ready() -> void:
 	_build_environment()
 	_build_board()
 	_build_tokens()
+	_build_dice()
 	_build_hud()
+	_apply_camera()
 	_start_turn()
 
 # ----------------------------------------------------------------- board geometry
@@ -49,13 +77,46 @@ func _token_offset(pid: int) -> Vector3:
 	var a := float(pid) * TAU / 6.0
 	return Vector3(cos(a), 0.0, sin(a)) * 0.24
 
+# ----------------------------------------------------------------- primitives
+func _mat(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	return m
+
+func _mesh(mesh: Mesh, color: Color, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = _mat(color)
+	mi.position = pos
+	mi.rotation = rot
+	return mi
+
+func _box(size: Vector3, color: Color, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var m := BoxMesh.new()
+	m.size = size
+	return _mesh(m, color, pos, rot)
+
+func _sphere(r: float, color: Color, pos: Vector3) -> MeshInstance3D:
+	var m := SphereMesh.new()
+	m.radius = r
+	m.height = r * 2.0
+	return _mesh(m, color, pos)
+
+func _cyl(rt: float, rb: float, h: float, color: Color, pos: Vector3, rot := Vector3.ZERO, seg := 16) -> MeshInstance3D:
+	var m := CylinderMesh.new()
+	m.top_radius = rt
+	m.bottom_radius = rb
+	m.height = h
+	m.radial_segments = seg
+	return _mesh(m, color, pos, rot)
+
 # ----------------------------------------------------------------- scene building
 func _build_environment() -> void:
-	var cam := Camera3D.new()
-	cam.position = Vector3(0, 15.5, 13.5)
-	cam.look_at_from_position(cam.position, Vector3.ZERO, Vector3.UP)
+	cam_pivot = Node3D.new()
+	add_child(cam_pivot)
+	cam = Camera3D.new()
 	cam.fov = 55.0
-	add_child(cam)
+	cam_pivot.add_child(cam)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-55, -35, 0)
@@ -76,31 +137,16 @@ func _build_environment() -> void:
 	felt.material_override = _mat(Color("#0f5132"))
 	add_child(felt)
 
-func _mat(c: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	return m
-
 func _build_board() -> void:
 	for s in state.board.spaces:
-		var tile := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(SPACING * 0.92, 0.1, SPACING * 0.92)
-		tile.mesh = bm
-		tile.position = _tile_world(s.index)
-		tile.material_override = _mat(_tile_color(s))
+		var tile := _box(Vector3(SPACING * 0.92, 0.1, SPACING * 0.92), _tile_color(s), _tile_world(s.index))
 		add_child(tile)
 
-		# colour band for streets
 		if s.type == SpaceData.Type.STREET:
 			var g := state.board.get_group(s.color_group)
 			if g != null:
-				var band := MeshInstance3D.new()
-				var bb := BoxMesh.new()
-				bb.size = Vector3(SPACING * 0.92, 0.12, SPACING * 0.26)
-				band.mesh = bb
-				band.position = _tile_world(s.index) + Vector3(0, 0.02, -SPACING * 0.33)
-				band.material_override = _mat(g.display_color)
+				var band := _box(Vector3(SPACING * 0.92, 0.12, SPACING * 0.26), g.display_color,
+					_tile_world(s.index) + Vector3(0, 0.02, -SPACING * 0.33))
 				add_child(band)
 
 		var label := Label3D.new()
@@ -108,7 +154,6 @@ func _build_board() -> void:
 		label.pixel_size = 0.0045
 		label.font_size = 44
 		label.modulate = Color.BLACK
-		label.outline_size = 0
 		label.rotation_degrees = Vector3(-90, 0, 0)
 		label.position = _tile_world(s.index) + Vector3(0, 0.12, 0)
 		add_child(label)
@@ -139,16 +184,210 @@ func _tile_label(s: SpaceData) -> String:
 
 func _build_tokens() -> void:
 	for p in state.players:
-		var tok := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.16
-		cm.bottom_radius = 0.16
-		cm.height = 0.5
-		tok.mesh = cm
-		tok.material_override = _mat(p.token_color)
-		tok.position = _tile_world(p.position) + _token_offset(p.id) + Vector3(0, 0.3, 0)
+		var token_def := GameConfig.token_for_player(p.id)
+		var tok := _make_token(token_def)
+		tok.position = _tile_world(p.position) + _token_offset(p.id) + Vector3(0, TOKEN_Y, 0)
 		add_child(tok)
 		tokens[p.id] = tok
+
+func _make_token(token: Dictionary) -> Node3D:
+	var root := Node3D.new()
+	var c: Color = token.color
+	match String(token.id):
+		"rickshaw":
+			root.add_child(_box(Vector3(0.3, 0.16, 0.4), c, Vector3(0, 0.14, 0)))
+			root.add_child(_box(Vector3(0.26, 0.2, 0.2), c.lightened(0.2), Vector3(0, 0.3, -0.06)))
+			root.add_child(_cyl(0.07, 0.07, 0.05, Color.BLACK, Vector3(-0.16, 0.07, 0.12), Vector3(0, 0, PI / 2.0)))
+			root.add_child(_cyl(0.07, 0.07, 0.05, Color.BLACK, Vector3(0.16, 0.07, 0.12), Vector3(0, 0, PI / 2.0)))
+			root.add_child(_cyl(0.07, 0.07, 0.05, Color.BLACK, Vector3(0, 0.07, -0.16), Vector3(0, 0, PI / 2.0)))
+		"ball":
+			root.add_child(_sphere(0.2, c, Vector3(0, 0.2, 0)))
+		"kite":
+			root.add_child(_box(Vector3(0.28, 0.02, 0.28), c, Vector3(0, 0.34, 0), Vector3(0, 0, PI / 4.0)))
+			root.add_child(_cyl(0.006, 0.006, 0.34, c.darkened(0.2), Vector3(0, 0.17, 0)))
+		"dhol", "drum":
+			root.add_child(_cyl(0.16, 0.16, 0.34, c, Vector3(0, 0.2, 0)))
+		"temple":
+			root.add_child(_box(Vector3(0.34, 0.22, 0.34), c, Vector3(0, 0.13, 0)))
+			root.add_child(_cyl(0.0, 0.2, 0.28, c.lightened(0.2), Vector3(0, 0.38, 0), Vector3.ZERO, 4))
+		"top":
+			root.add_child(_cyl(0.18, 0.0, 0.3, c, Vector3(0, 0.2, 0)))
+			root.add_child(_cyl(0.03, 0.03, 0.12, c.lightened(0.3), Vector3(0, 0.4, 0)))
+		"lamp":
+			root.add_child(_cyl(0.18, 0.1, 0.1, c, Vector3(0, 0.1, 0)))
+			root.add_child(_sphere(0.05, Color("#FF8C00"), Vector3(0, 0.2, 0)))
+		_:
+			root.add_child(_cyl(0.14, 0.14, 0.4, c, Vector3(0, 0.2, 0)))
+	return root
+
+# ----------------------------------------------------------------- dice
+func _build_dice() -> void:
+	die1 = _make_die()
+	die1.position = Vector3(-0.5, 0.9, 0)
+	add_child(die1)
+	die2 = _make_die()
+	die2.position = Vector3(0.5, 0.9, 0)
+	add_child(die2)
+
+func _make_die() -> Node3D:
+	var d := _box(Vector3(0.6, 0.6, 0.6), Color("#f6f6f6"), Vector3.ZERO)
+	_add_face_label(d, 1, Vector3(0, 0.31, 0), Vector3(-90, 0, 0))
+	_add_face_label(d, 6, Vector3(0, -0.31, 0), Vector3(90, 0, 0))
+	_add_face_label(d, 3, Vector3(0.31, 0, 0), Vector3(0, 90, 0))
+	_add_face_label(d, 4, Vector3(-0.31, 0, 0), Vector3(0, -90, 0))
+	_add_face_label(d, 2, Vector3(0, 0, 0.31), Vector3(0, 0, 0))
+	_add_face_label(d, 5, Vector3(0, 0, -0.31), Vector3(0, 180, 0))
+	return d
+
+func _add_face_label(die: Node3D, value: int, pos: Vector3, rot_deg: Vector3) -> void:
+	var l := Label3D.new()
+	l.text = str(value)
+	l.font_size = 120
+	l.pixel_size = 0.0035
+	l.modulate = Color.BLACK
+	l.double_sided = true
+	l.position = pos
+	l.rotation_degrees = rot_deg
+	die.add_child(l)
+
+func _die_target(v: int) -> Vector3:
+	match v:
+		1: return Vector3.ZERO
+		6: return Vector3(PI, 0, 0)
+		2: return Vector3(-PI / 2.0, 0, 0)
+		5: return Vector3(PI / 2.0, 0, 0)
+		3: return Vector3(0, 0, PI / 2.0)
+		4: return Vector3(0, 0, -PI / 2.0)
+	return Vector3.ZERO
+
+func _animate_dice(v1: int, v2: int) -> void:
+	die1.rotation = Vector3(state.rng.randf() * TAU, state.rng.randf() * TAU, state.rng.randf() * TAU)
+	die2.rotation = Vector3(state.rng.randf() * TAU, state.rng.randf() * TAU, state.rng.randf() * TAU)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(die1, "rotation", _die_target(v1) + Vector3(TAU * 2, TAU * 3, 0), 0.7) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(die2, "rotation", _die_target(v2) + Vector3(TAU * 3, TAU * 2, 0), 0.7) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await tw.finished
+
+# ----------------------------------------------------------------------- camera
+func _apply_camera() -> void:
+	cam_zoom = clampf(cam_zoom, ZOOM_MIN, ZOOM_MAX)
+	cam_target.x = clampf(cam_target.x, -10.0, 10.0)
+	cam_target.z = clampf(cam_target.z, -10.0, 10.0)
+	cam_pivot.position = cam_target
+	cam_pivot.rotation = Vector3(0, cam_yaw, 0)
+	cam.position = CAM_BASE * cam_zoom
+	cam.look_at(cam_pivot.global_transform.origin, Vector3.UP)
+
+func _recenter() -> void:
+	cam_target = Vector3.ZERO
+	cam_yaw = 0.0
+	cam_zoom = 1.0
+	_apply_camera()
+
+func _focus_tile(idx: int) -> void:
+	cam_target = _tile_world(idx)
+	cam_zoom = 0.6
+	_apply_camera()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touches[event.index] = event.position
+			if _touches.size() == 1:
+				_tap_candidate = true
+				_tap_start = event.position
+			else:
+				_tap_candidate = false
+				_pinch_prev = -1.0
+		else:
+			_touches.erase(event.index)
+			if _touches.size() < 2:
+				_pinch_prev = -1.0
+			if _tap_candidate and _touches.is_empty():
+				_handle_tap(event.position)
+			_tap_candidate = false
+	elif event is InputEventScreenDrag:
+		_touches[event.index] = event.position
+		if _touches.size() >= 2:
+			_handle_two_finger()
+		elif _touches.size() == 1:
+			if event.position.distance_to(_tap_start) > 14.0:
+				_tap_candidate = false
+			_pan(event.relative)
+	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			cam_zoom *= 0.9
+			_apply_camera()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			cam_zoom *= 1.1
+			_apply_camera()
+		elif event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			if _tap_candidate:
+				_handle_tap(event.position)
+		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_tap_candidate = true
+			_tap_start = event.position
+	elif event is InputEventMouseMotion:
+		if event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			if event.position.distance_to(_tap_start) > 6.0:
+				_tap_candidate = false
+			_pan(event.relative)
+		elif event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+			cam_yaw += event.relative.x * 0.01
+			_apply_camera()
+
+func _pan(rel: Vector2) -> void:
+	var basis := cam_pivot.transform.basis
+	cam_target += (basis * Vector3(-rel.x, 0, -rel.y)) * (0.013 * cam_zoom)
+	_apply_camera()
+
+func _handle_two_finger() -> void:
+	var pts := _touches.values()
+	var a: Vector2 = pts[0]
+	var b: Vector2 = pts[1]
+	var dist := a.distance_to(b)
+	var ang := (b - a).angle()
+	if _pinch_prev > 0.0:
+		cam_zoom *= _pinch_prev / max(dist, 1.0)
+		cam_yaw += ang - _twist_prev
+		_apply_camera()
+	_pinch_prev = dist
+	_twist_prev = ang
+
+func _handle_tap(pos: Vector2) -> void:
+	var idx := _tile_at_screen(pos)
+	if idx < 0:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_tap_ms < 350 and pos.distance_to(_last_tap_pos) < 40.0:
+		_focus_tile(idx)
+		_last_tap_ms = 0
+	else:
+		_show_property_card(idx)
+		_last_tap_ms = now
+		_last_tap_pos = pos
+
+func _tile_at_screen(pos: Vector2) -> int:
+	var from := cam.project_ray_origin(pos)
+	var dir := cam.project_ray_normal(pos)
+	if absf(dir.y) < 0.0001:
+		return -1
+	var t := -from.y / dir.y
+	if t < 0:
+		return -1
+	var hit := from + dir * t
+	var best := -1
+	var best_d := 1e9
+	for s in state.board.spaces:
+		var d := hit.distance_squared_to(_tile_world(s.index))
+		if d < best_d:
+			best_d = d
+			best = s.index
+	if best_d > pow(SPACING * 0.7, 2):
+		return -1
+	return best
 
 # ----------------------------------------------------------------------- HUD
 func _build_hud() -> void:
@@ -159,17 +398,15 @@ func _build_hud() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
 
-	# top: turn label
 	turn_label = Label.new()
-	turn_label.add_theme_font_size_override("font_size", 34)
-	turn_label.position = Vector2(20, 16)
+	turn_label.add_theme_font_size_override("font_size", 32)
+	turn_label.position = Vector2(20, 14)
 	root.add_child(turn_label)
 
-	# player cash list (top-right)
 	var list := VBoxContainer.new()
 	list.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	list.position = Vector2(-260, 14)
-	list.add_theme_constant_override("separation", 4)
+	list.position = Vector2(-280, 12)
+	list.add_theme_constant_override("separation", 3)
 	root.add_child(list)
 	player_rows.clear()
 	for p in state.players:
@@ -179,25 +416,30 @@ func _build_hud() -> void:
 		list.add_child(row)
 		player_rows.append(row)
 
-	# center message
 	message_label = Label.new()
-	message_label.add_theme_font_size_override("font_size", 30)
+	message_label.add_theme_font_size_override("font_size", 28)
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	message_label.position = Vector2(-300, 120)
-	message_label.size = Vector2(600, 50)
+	message_label.position = Vector2(-340, 60)
+	message_label.size = Vector2(680, 44)
 	root.add_child(message_label)
 
-	# bottom action bar
+	# recenter button (top-left below turn)
+	var rc := _make_button("Recenter")
+	rc.custom_minimum_size = Vector2(120, 44)
+	rc.position = Vector2(20, 58)
+	rc.pressed.connect(_recenter)
+	root.add_child(rc)
+
 	var bar := HBoxContainer.new()
 	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	bar.position = Vector2(-320, -90)
+	bar.position = Vector2(-330, -84)
 	bar.add_theme_constant_override("separation", 14)
 	root.add_child(bar)
 
 	dice_label = Label.new()
-	dice_label.add_theme_font_size_override("font_size", 28)
-	dice_label.custom_minimum_size = Vector2(150, 56)
+	dice_label.add_theme_font_size_override("font_size", 26)
+	dice_label.custom_minimum_size = Vector2(140, 56)
 	dice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	bar.add_child(dice_label)
 
@@ -219,12 +461,78 @@ func _build_hud() -> void:
 	end_button.pressed.connect(_on_end_pressed)
 	bar.add_child(end_button)
 
+	_build_card_panel(root)
+
 func _make_button(t: String) -> Button:
 	var b := Button.new()
 	b.text = t
-	b.add_theme_font_size_override("font_size", 26)
+	b.add_theme_font_size_override("font_size", 24)
 	b.custom_minimum_size = Vector2(120, 56)
 	return b
+
+func _build_card_panel(root: Control) -> void:
+	card_panel = PanelContainer.new()
+	card_panel.set_anchors_preset(Control.PRESET_CENTER)
+	card_panel.position = Vector2(-170, -200)
+	card_panel.custom_minimum_size = Vector2(340, 0)
+	card_panel.visible = false
+	root.add_child(card_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	card_panel.add_child(margin)
+	card_vbox = VBoxContainer.new()
+	card_vbox.add_theme_constant_override("separation", 6)
+	margin.add_child(card_vbox)
+
+func _card_line(text: String, size := 20, color := Color.WHITE) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	card_vbox.add_child(l)
+
+func _show_property_card(idx: int) -> void:
+	var s := state.board.get_space(idx)
+	if s == null:
+		return
+	for c in card_vbox.get_children():
+		c.queue_free()
+	var header_color := Color.WHITE
+	if s.type == SpaceData.Type.STREET:
+		var g := state.board.get_group(s.color_group)
+		if g != null:
+			header_color = g.display_color
+	_card_line(s.display_name if s.display_name != "" else _tile_label(s).replace("\n", " "), 26, header_color)
+	if s.is_ownable():
+		_card_line("Price: $%d" % s.price)
+		var owner_id := state.owner_of(idx)
+		var owner_txt := "Unowned"
+		if owner_id >= 0:
+			owner_txt = state.player_by_id(owner_id).name
+		_card_line("Owner: %s" % owner_txt, 18, Color("#cfd8dc"))
+		if s.type == SpaceData.Type.STREET:
+			var names := ["Rent", "1 House", "2 Houses", "3 Houses", "4 Houses", "HOTEL"]
+			for i in s.rent_table.size():
+				_card_line("%s: $%d" % [names[i], s.rent_table[i]], 17, Color("#e0e0e0"))
+		elif s.type == SpaceData.Type.STATION:
+			for i in s.station_rent.size():
+				_card_line("%d owned: $%d" % [i + 1, s.station_rent[i]], 17, Color("#e0e0e0"))
+		elif s.type == SpaceData.Type.UTILITY:
+			_card_line("Rent = dice x %d (1) / x %d (both)" % [s.utility_multiplier[0], s.utility_multiplier[1]], 16, Color("#e0e0e0"))
+		_card_line("Mortgage: $%d" % s.mortgage_value, 17, Color("#bdbdbd"))
+	elif s.type == SpaceData.Type.TAX:
+		_card_line("Pay $%d" % s.tax_amount)
+	else:
+		_card_line(_tile_label(s).replace("\n", " "), 18, Color("#cfd8dc"))
+	var close := Button.new()
+	close.text = "Close"
+	close.add_theme_font_size_override("font_size", 18)
+	close.pressed.connect(func() -> void: card_panel.visible = false)
+	card_vbox.add_child(close)
+	card_panel.visible = true
 
 func _update_hud() -> void:
 	var cur := state.current_player()
@@ -233,7 +541,8 @@ func _update_hud() -> void:
 		var p := state.players[i]
 		var tag := "  (OUT)" if p.bankrupt else ""
 		var jail := "  [JAIL]" if p.in_jail else ""
-		player_rows[i].text = "%s: $%d%s%s" % [p.name, p.cash, jail, tag]
+		var tdef := GameConfig.token_for_player(p.id)
+		player_rows[i].text = "%s (%s): $%d%s%s" % [p.name, String(tdef.name), p.cash, jail, tag]
 		player_rows[i].modulate = Color("#666666") if p.bankrupt else p.token_color.lightened(0.2)
 
 func _msg(t: String) -> void:
@@ -262,6 +571,7 @@ func _on_roll_pressed() -> void:
 	var p := state.current_player()
 	var r := DiceLogic.roll(state.rng)
 	dice_label.text = "%d + %d = %d" % [r.d1, r.d2, r.total]
+	await _animate_dice(r.d1, r.d2)
 
 	if p.in_jail:
 		await _handle_jail_roll(p, r)
@@ -345,9 +655,9 @@ func _teleport(p: Player, to: int) -> void:
 	_update_hud()
 
 func _hop(p: Player, to_index: int) -> void:
-	var tok: MeshInstance3D = tokens[p.id]
+	var tok: Node3D = tokens[p.id]
 	var start: Vector3 = tok.position
-	var end: Vector3 = _tile_world(to_index) + _token_offset(p.id) + Vector3(0, 0.3, 0)
+	var end: Vector3 = _tile_world(to_index) + _token_offset(p.id) + Vector3(0, TOKEN_Y, 0)
 	var mid: Vector3 = (start + end) * 0.5 + Vector3(0, 0.7, 0)
 	var cb := func(t: float) -> void:
 		tok.position = start.lerp(mid, t).lerp(mid.lerp(end, t), t)
@@ -356,7 +666,6 @@ func _hop(p: Player, to_index: int) -> void:
 	await tw.finished
 
 # ------------------------------------------------------------------- landing
-## Returns true if we're now waiting on a player buy/skip decision.
 func _resolve_landing(p: Player, dice_total: int) -> bool:
 	var s := state.board.get_space(p.position)
 	match s.type:
@@ -492,4 +801,4 @@ func _end_game() -> void:
 	buy_button.visible = false
 	skip_button.visible = false
 	if w != null:
-		_msg("🏆 %s wins the game!" % w.name)
+		_msg("%s wins the game!" % w.name)
