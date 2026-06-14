@@ -4,7 +4,14 @@ extends RefCounted
 
 const FONT_PATH := "res://assets/ui/kenney_ui/Font/Kenney Future Narrow.ttf"
 const BTN_DIR := "res://assets/ui/kenney_ui/PNG/Blue/Default/"
+const BTN_GREEN := "res://assets/ui/kenney_ui/PNG/Green/Default/"
 const BTN_DISABLED := "res://assets/ui/kenney_ui/PNG/Grey/Default/button_rectangle_depth_flat.png"
+
+## Style a single button as a big "primary" (green) call-to-action.
+static func style_primary(b: Button) -> void:
+	b.add_theme_stylebox_override("normal", _btn(BTN_GREEN + "button_rectangle_depth_gradient.png"))
+	b.add_theme_stylebox_override("hover", _btn(BTN_GREEN + "button_rectangle_depth_gloss.png"))
+	b.add_theme_stylebox_override("pressed", _btn(BTN_GREEN + "button_rectangle_flat.png"))
 
 static var _theme: Theme
 
