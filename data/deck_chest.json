@@ -1,0 +1,15 @@
+{
+  "id": "chest",
+  "cards": [
+    { "id": "cc_go",       "text": "Advance to GO. Collect ₹200.",           "effect": "MOVE_TO", "target_index": 0 },
+    { "id": "cc_bankerr",  "text": "Bank error in your favour. Collect ₹200.", "effect": "COLLECT", "amount": 200 },
+    { "id": "cc_doctor",   "text": "Doctor's fees. Pay ₹50.",                 "effect": "PAY", "amount": 50 },
+    { "id": "cc_jail",     "text": "Go directly to Jail. Do not pass GO.",       "effect": "GOTO_JAIL" },
+    { "id": "cc_refund",   "text": "Income tax refund. Collect ₹20.",         "effect": "COLLECT", "amount": 20 },
+    { "id": "cc_inherit",  "text": "You inherit ₹100.",                       "effect": "COLLECT", "amount": 100 },
+    { "id": "cc_hospital", "text": "Pay hospital fees of ₹100.",              "effect": "PAY", "amount": 100 },
+    { "id": "cc_school",   "text": "Pay school fees of ₹50.",                 "effect": "PAY", "amount": 50 },
+    { "id": "cc_getout",   "text": "Get Out of Jail Free. Keep this card.",      "effect": "GET_OUT_OF_JAIL_FREE" },
+    { "id": "cc_street",   "text": "Street repairs: pay ₹40 per house, ₹115 per hotel.", "effect": "REPAIRS", "per_house": 40, "per_hotel": 115 }
+  ]
+}

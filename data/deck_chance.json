@@ -1,0 +1,15 @@
+{
+  "id": "chance",
+  "cards": [
+    { "id": "ch_go",        "text": "Advance to GO. Collect ₹200.",            "effect": "MOVE_TO", "target_index": 0 },
+    { "id": "ch_delhi",     "text": "Advance to New Delhi.",                       "effect": "MOVE_TO", "target_index": 37 },
+    { "id": "ch_mumbai",    "text": "Take a trip to Mumbai Central station.",     "effect": "MOVE_TO", "target_index": 5 },
+    { "id": "ch_jail",      "text": "Go directly to Jail. Do not pass GO.",       "effect": "GOTO_JAIL" },
+    { "id": "ch_dividend",  "text": "Bank pays you a dividend of ₹50.",       "effect": "COLLECT", "amount": 50 },
+    { "id": "ch_loan",      "text": "Your building loan matures. Collect ₹150.", "effect": "COLLECT", "amount": 150 },
+    { "id": "ch_back3",     "text": "Go back 3 spaces.",                           "effect": "MOVE_REL", "amount": -3 },
+    { "id": "ch_tax",       "text": "Pay road tax of ₹15.",                    "effect": "PAY", "amount": 15 },
+    { "id": "ch_getout",    "text": "Get Out of Jail Free. Keep this card.",      "effect": "GET_OUT_OF_JAIL_FREE" },
+    { "id": "ch_repairs",   "text": "General repairs: pay ₹25 per house, ₹100 per hotel.", "effect": "REPAIRS", "per_house": 25, "per_hotel": 100 }
+  ]
+}
