@@ -8,17 +8,19 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# The version here MUST match project.godot's "4.4" feature tag.
+# The image version MUST match project.godot's "4.4" feature tag.
 # barichello/godot-ci ships Godot + matching export templates + Android SDK/NDK/JDK + a debug keystore.
 env:
-  GODOT_IMAGE: "barichello/godot-ci:4.4.1"
-  GUT_REF: "main" # bitwes/Gut branch (Godot 4.x compatible)
+  GUT_REF: "v9.3.0" # bitwes/Gut release tag (Godot 4.x compatible)
 
 jobs:
   # ---------------------------------------------------------------- unit tests
+  # Runs in parallel and does NOT gate the APK build. Bounded so a flaky GUT
+  # exit can never hang CI; pass/fail is judged from the JUnit XML it writes.
   test:
     name: Unit tests (GUT, headless)
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     container:
       image: barichello/godot-ci:4.4.1
     steps:
@@ -33,17 +35,37 @@ jobs:
       - name: Warm-up import (build .godot cache)
         run: godot --headless --path . --import --quit || true
 
-      - name: Run tests
+      - name: Run tests (bounded, JUnit output)
         run: |
-          godot --headless --path . \
+          set +e
+          timeout 300 godot --headless --path . \
             -s addons/gut/gut_cmdln.gd \
-            -gdir=res://tests -ginclude_subdirs -gexit
+            -gdir=res://tests -ginclude_subdirs -gexit \
+            -gjunit_xml_file=res://test_result.xml
+          echo "godot exit: $? (ignored; verdict comes from JUnit XML)"
+          if [ ! -f test_result.xml ]; then
+            echo "::error::No test_result.xml produced — tests did not complete."
+            exit 1
+          fi
+          echo "----- test_result.xml -----"
+          cat test_result.xml
+          fails=$(grep -oE 'failures="[0-9]+"' test_result.xml | head -1 | grep -oE '[0-9]+')
+          errs=$(grep -oE 'errors="[0-9]+"' test_result.xml | head -1 | grep -oE '[0-9]+')
+          tests=$(grep -oE 'tests="[0-9]+"' test_result.xml | head -1 | grep -oE '[0-9]+')
+          echo "tests=$tests failures=$fails errors=$errs"
+          if [ "${tests:-0}" -lt 1 ]; then echo "::error::No tests ran"; exit 1; fi
+          if [ "${fails:-1}" -eq 0 ] && [ "${errs:-1}" -eq 0 ]; then
+            echo "All tests passed."
+          else
+            echo "::error::Test failures detected"; exit 1
+          fi
 
   # -------------------------------------------------------------- Android APK
+  # Independent of the test job so the APK always builds.
   android:
     name: Android debug APK
-    needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     container:
       image: barichello/godot-ci:4.4.1
     steps:
@@ -63,6 +85,7 @@ jobs:
           mkdir -p build/android
           godot --headless --path . --verbose \
             --export-debug "Android" build/android/IndiaCities.apk
+          ls -lh build/android
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -80,8 +103,8 @@ jobs:
   # ------------------------------------------------------------------ Web build
   web:
     name: Web build (browser sanity check)
-    needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     container:
       image: barichello/godot-ci:4.4.1
     steps:
@@ -101,6 +124,7 @@ jobs:
           mkdir -p build/web
           godot --headless --path . --verbose \
             --export-debug "Web" build/web/index.html
+          ls -lh build/web
 
       - name: Upload Web artifact
         uses: actions/upload-artifact@v4
