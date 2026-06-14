@@ -8,6 +8,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Allow the tag build to create a Release and upload the APK asset.
+# NOTE: also requires repo Settings -> Actions -> General -> Workflow permissions
+# set to "Read and write" if the repo default is read-only.
+permissions:
+  contents: write
+
 # The image version MUST match project.godot's "4.4" feature tag.
 # barichello/godot-ci ships Godot + matching export templates + Android SDK/NDK/JDK + a debug keystore.
 env:
