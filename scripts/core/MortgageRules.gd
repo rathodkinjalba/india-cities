@@ -14,6 +14,7 @@ static func can_unmortgage(state: PropertyState) -> bool:
 static func mortgage_payout(space: SpaceData) -> int:
 	return space.mortgage_value
 
-## Cost to lift a mortgage = mortgage value + 10% interest, rounded up.
+## Cost to lift a mortgage = mortgage value + 10% interest (rounded up).
+## Integer math avoids float error (e.g. 100 * 1.1 == 110.00000001 -> would ceil to 111).
 static func unmortgage_cost(space: SpaceData) -> int:
-	return int(ceil(float(space.mortgage_value) * 1.1))
+	return space.mortgage_value + int(ceil(space.mortgage_value / 10.0))

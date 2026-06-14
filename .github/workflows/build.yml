@@ -78,10 +78,16 @@ jobs:
           cp -r /tmp/gut/addons/gut addons/gut
 
       - name: Warm-up import
+        env:
+          HOME: /root
         run: godot --headless --path . --import --quit || true
 
       - name: Export Android debug APK
+        env:
+          HOME: /root # barichello image bakes templates/keystore/Java SDK under /root
         run: |
+          echo "--- export templates present? ---"
+          ls -la /root/.local/share/godot/export_templates/ 2>/dev/null || echo "(none under /root)"
           mkdir -p build/android
           godot --headless --path . --verbose \
             --export-debug "Android" build/android/IndiaCities.apk
@@ -117,9 +123,13 @@ jobs:
           cp -r /tmp/gut/addons/gut addons/gut
 
       - name: Warm-up import
+        env:
+          HOME: /root
         run: godot --headless --path . --import --quit || true
 
       - name: Export Web build
+        env:
+          HOME: /root
         run: |
           mkdir -p build/web
           godot --headless --path . --verbose \
