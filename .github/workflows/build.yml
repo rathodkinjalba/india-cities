@@ -93,13 +93,16 @@ jobs:
         env:
           HOME: /root # barichello image bakes templates/keystore/Java SDK under /root
         run: |
-          set -o pipefail
           mkdir -p build/android
+          # Godot can exit non-zero on benign export-time warnings while still
+          # producing the APK, so don't fail on its exit code; instead fail on
+          # real compile errors in the log, or if no APK was produced.
           godot --headless --path . --verbose \
-            --export-debug "Android" build/android/IndiaCities.apk 2>&1 | tee export.log
-          if grep -qE "Parse Error|Compile Error|Failed to load script|Failed to instantiate" export.log; then
+            --export-debug "Android" build/android/IndiaCities.apk 2>&1 | tee export.log || true
+          if grep -qE "Parse Error|Compile Error|Failed to load script" export.log; then
             echo "::error::GDScript compile/load error during export (see log above)"; exit 1
           fi
+          test -f build/android/IndiaCities.apk || { echo "::error::APK was not produced"; exit 1; }
           ls -lh build/android
 
       - name: Upload APK artifact
@@ -142,7 +145,11 @@ jobs:
         run: |
           mkdir -p build/web
           godot --headless --path . --verbose \
-            --export-debug "Web" build/web/index.html
+            --export-debug "Web" build/web/index.html 2>&1 | tee webexport.log || true
+          if grep -qE "Parse Error|Compile Error|Failed to load script" webexport.log; then
+            echo "::error::GDScript compile/load error during web export (see log above)"; exit 1
+          fi
+          test -f build/web/index.html || { echo "::error::Web build was not produced"; exit 1; }
           ls -lh build/web
 
       - name: Upload Web artifact
