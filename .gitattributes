@@ -1,0 +1,21 @@
+# Normalize all text files to LF in the repo (keeps CI/Linux happy regardless of Windows checkout).
+* text=auto eol=lf
+
+# Godot + project text files are LF
+*.gd        text eol=lf
+*.tscn      text eol=lf
+*.tres      text eol=lf
+*.godot     text eol=lf
+*.cfg       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+*.svg       text eol=lf
+
+# Binary assets (no line-ending munging, eligible for LFS later)
+*.png       binary
+*.jpg       binary
+*.ogg       binary
+*.wav       binary
+*.ttf       binary
+*.glb       binary
