@@ -153,6 +153,9 @@ func _build_board() -> void:
 		label.text = _tile_label(s)
 		label.pixel_size = 0.0045
 		label.font_size = 44
+		var lf := UITheme.font()
+		if lf != null:
+			label.font = lf
 		label.modulate = Color.BLACK
 		label.rotation_degrees = Vector3(-90, 0, 0)
 		label.position = _tile_world(s.index) + Vector3(0, 0.12, 0)
@@ -230,25 +233,30 @@ func _build_dice() -> void:
 	add_child(die2)
 
 func _make_die() -> Node3D:
-	var d := _box(Vector3(0.6, 0.6, 0.6), Color("#f6f6f6"), Vector3.ZERO)
-	_add_face_label(d, 1, Vector3(0, 0.31, 0), Vector3(-90, 0, 0))
-	_add_face_label(d, 6, Vector3(0, -0.31, 0), Vector3(90, 0, 0))
-	_add_face_label(d, 3, Vector3(0.31, 0, 0), Vector3(0, 90, 0))
-	_add_face_label(d, 4, Vector3(-0.31, 0, 0), Vector3(0, -90, 0))
-	_add_face_label(d, 2, Vector3(0, 0, 0.31), Vector3(0, 0, 0))
-	_add_face_label(d, 5, Vector3(0, 0, -0.31), Vector3(0, 180, 0))
+	var d := _box(Vector3(0.6, 0.6, 0.6), Color("#fafafa"), Vector3.ZERO)
+	_add_face(d, 1, Vector3(0, 0.301, 0), Vector3(-90, 0, 0))
+	_add_face(d, 6, Vector3(0, -0.301, 0), Vector3(90, 0, 0))
+	_add_face(d, 3, Vector3(0.301, 0, 0), Vector3(0, 90, 0))
+	_add_face(d, 4, Vector3(-0.301, 0, 0), Vector3(0, -90, 0))
+	_add_face(d, 2, Vector3(0, 0, 0.301), Vector3(0, 0, 0))
+	_add_face(d, 5, Vector3(0, 0, -0.301), Vector3(0, 180, 0))
 	return d
 
-func _add_face_label(die: Node3D, value: int, pos: Vector3, rot_deg: Vector3) -> void:
-	var l := Label3D.new()
-	l.text = str(value)
-	l.font_size = 120
-	l.pixel_size = 0.0035
-	l.modulate = Color.BLACK
-	l.double_sided = true
-	l.position = pos
-	l.rotation_degrees = rot_deg
-	die.add_child(l)
+func _add_face(die: Node3D, value: int, pos: Vector3, rot_deg: Vector3) -> void:
+	# Kenney board-game pack dice faces (real dots) textured onto each cube face.
+	var q := MeshInstance3D.new()
+	var m := QuadMesh.new()
+	m.size = Vector2(0.58, 0.58)
+	q.mesh = m
+	var mat := StandardMaterial3D.new()
+	var path := "res://assets/models/kenney_boardgame/PNG/Dice/dieWhite%d.png" % value
+	if ResourceLoader.exists(path):
+		mat.albedo_texture = load(path)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	q.material_override = mat
+	q.position = pos
+	q.rotation_degrees = rot_deg
+	die.add_child(q)
 
 func _die_target(v: int) -> Vector3:
 	match v:
@@ -398,6 +406,7 @@ func _build_hud() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = UITheme.get_theme()
 	layer.add_child(root)
 
 	turn_label = Label.new()
@@ -469,7 +478,8 @@ func _make_button(t: String) -> Button:
 	var b := Button.new()
 	b.text = t
 	b.add_theme_font_size_override("font_size", 24)
-	b.custom_minimum_size = Vector2(120, 56)
+	b.custom_minimum_size = Vector2(130, 60)
+	b.pressed.connect(func() -> void: Sfx.play("click"))
 	return b
 
 func _build_card_panel(root: Control) -> void:
@@ -573,6 +583,7 @@ func _on_roll_pressed() -> void:
 	var p := state.current_player()
 	var r := DiceLogic.roll(state.rng)
 	dice_label.text = "%d + %d = %d" % [r.d1, r.d2, r.total]
+	Sfx.play("dice")
 	await _animate_dice(r.d1, r.d2)
 
 	if p.in_jail:
@@ -706,6 +717,7 @@ func _on_buy_pressed() -> void:
 	var p := state.current_player()
 	if pending_buy_index >= 0:
 		state.buy(p, pending_buy_index)
+		Sfx.play("cash")
 		_msg("%s bought %s." % [p.name, state.board.get_space(pending_buy_index).display_name])
 	_finish_buy(p)
 
@@ -729,6 +741,7 @@ func _pay_rent(p: Player, index: int, dice_total: int) -> void:
 	_charge(p, owner, amount)
 
 func _charge(payer: Player, payee: Player, amount: int) -> void:
+	Sfx.play("cash")
 	if payer.cash >= amount:
 		state.transfer(payer, payee, amount)
 	else:

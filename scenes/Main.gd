@@ -4,6 +4,7 @@ extends Control
 var _count := 4
 
 func _ready() -> void:
+	theme = UITheme.get_theme()
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color("#0d1322")
@@ -54,6 +55,7 @@ func _ready() -> void:
 	start.text = "Start Game"
 	start.add_theme_font_size_override("font_size", 32)
 	start.custom_minimum_size = Vector2(260, 70)
+	start.pressed.connect(func() -> void: Sfx.play("confirm"))
 	start.pressed.connect(_on_start)
 	v.add_child(start)
 
