@@ -54,8 +54,9 @@ jobs:
           tests=$(grep -oE 'tests="[0-9]+"' test_result.xml | head -1 | grep -oE '[0-9]+')
           echo "tests=$tests failures=$fails errors=$errs"
           if [ "${tests:-0}" -lt 1 ]; then echo "::error::No tests ran"; exit 1; fi
-          if [ "${fails:-1}" -eq 0 ] && [ "${errs:-1}" -eq 0 ]; then
-            echo "All tests passed."
+          # GUT's <testsuites> omits the errors attribute -> treat missing as 0.
+          if [ "${fails:-1}" -eq 0 ] && [ "${errs:-0}" -eq 0 ]; then
+            echo "All ${tests} tests passed."
           else
             echo "::error::Test failures detected"; exit 1
           fi
