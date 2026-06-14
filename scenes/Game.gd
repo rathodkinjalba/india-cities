@@ -46,6 +46,11 @@ var skip_button: Button
 var player_rows: Array[Label] = []
 var card_panel: PanelContainer
 var card_vbox: VBoxContainer
+var build_button: Button
+var build_panel: PanelContainer
+var build_vbox: VBoxContainer
+var build_cash_label: Label
+var _house_nodes: Dictionary = {}
 
 func _ready() -> void:
 	state = GameState.new()
@@ -472,7 +477,12 @@ func _build_hud() -> void:
 	end_button.pressed.connect(_on_end_pressed)
 	bar.add_child(end_button)
 
+	build_button = _make_button("Build")
+	build_button.pressed.connect(_open_build)
+	bar.add_child(build_button)
+
 	_build_card_panel(root)
+	_build_build_panel(root)
 
 func _make_button(t: String) -> Button:
 	var b := Button.new()
@@ -545,6 +555,156 @@ func _show_property_card(idx: int) -> void:
 	close.pressed.connect(func() -> void: card_panel.visible = false)
 	card_vbox.add_child(close)
 	card_panel.visible = true
+
+# ----------------------------------------------------------------- build panel
+func _build_build_panel(root: Control) -> void:
+	build_panel = PanelContainer.new()
+	build_panel.set_anchors_preset(Control.PRESET_CENTER)
+	build_panel.custom_minimum_size = Vector2(660, 560)
+	build_panel.position = Vector2(-330, -280)
+	build_panel.visible = false
+	root.add_child(build_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	build_panel.add_child(margin)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	margin.add_child(outer)
+
+	var title := Label.new()
+	title.text = "BUILD HOUSES & HOTELS"
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color("#f0a020"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	outer.add_child(title)
+
+	build_cash_label = Label.new()
+	build_cash_label.add_theme_font_size_override("font_size", 22)
+	build_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	outer.add_child(build_cash_label)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 400)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	build_vbox = VBoxContainer.new()
+	build_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_vbox.add_theme_constant_override("separation", 8)
+	scroll.add_child(build_vbox)
+
+	var close := Button.new()
+	close.text = "Close"
+	close.add_theme_font_size_override("font_size", 24)
+	close.custom_minimum_size = Vector2(0, 56)
+	close.pressed.connect(func() -> void:
+		Sfx.play("click")
+		build_panel.visible = false)
+	outer.add_child(close)
+
+func _open_build() -> void:
+	if busy:
+		return
+	_populate_build()
+	build_panel.visible = true
+
+func _populate_build() -> void:
+	for c in build_vbox.get_children():
+		c.queue_free()
+	var p := state.current_player()
+	build_cash_label.text = "%s   ·   Cash $%d" % [p.name, p.cash]
+	var groups := state.player_full_groups(p.id)
+	if groups.is_empty():
+		var info := Label.new()
+		info.text = "Own a full colour group (monopoly) to build houses."
+		info.add_theme_font_size_override("font_size", 20)
+		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		build_vbox.add_child(info)
+		return
+	for gid in groups:
+		var g := state.board.get_group(gid)
+		for idx in g.member_indices:
+			build_vbox.add_child(_build_row(p, g, idx))
+
+func _build_row(p: Player, g: ColorGroupData, idx: int) -> Control:
+	var s := state.board.get_space(idx)
+	var ps: PropertyState = state.props.get(idx)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+
+	var sw := ColorRect.new()
+	sw.custom_minimum_size = Vector2(14, 50)
+	sw.color = g.display_color
+	row.add_child(sw)
+
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var nm := Label.new()
+	nm.text = s.display_name
+	nm.add_theme_font_size_override("font_size", 22)
+	info.add_child(nm)
+	var sub := Label.new()
+	var lvl := "HOTEL" if ps.houses >= 5 else ("Houses: %d" % ps.houses)
+	var rent := RentCalculator.street_rent(s, ps.houses, true, false)
+	sub.text = "%s   ·   Rent $%d" % [lvl, rent]
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.add_theme_color_override("font_color", Color("#cfd8dc"))
+	info.add_child(sub)
+	row.add_child(info)
+
+	var sell_b := Button.new()
+	sell_b.text = "Sell"
+	sell_b.add_theme_font_size_override("font_size", 18)
+	sell_b.custom_minimum_size = Vector2(90, 54)
+	sell_b.disabled = not state.can_sell_on(p.id, idx)
+	sell_b.pressed.connect(_on_sell_pressed.bind(idx))
+	row.add_child(sell_b)
+
+	var build_b := Button.new()
+	build_b.text = "Build $%d" % s.house_cost
+	build_b.add_theme_font_size_override("font_size", 18)
+	build_b.custom_minimum_size = Vector2(150, 54)
+	build_b.disabled = not state.can_build_on(p.id, idx)
+	build_b.pressed.connect(_on_build_pressed.bind(idx))
+	row.add_child(build_b)
+	return row
+
+func _on_build_pressed(idx: int) -> void:
+	var p := state.current_player()
+	if state.build_house(p.id, idx):
+		Sfx.play("cash")
+		_refresh_houses(idx)
+		_update_hud()
+		_populate_build()
+
+func _on_sell_pressed(idx: int) -> void:
+	var p := state.current_player()
+	if state.sell_house(p.id, idx):
+		Sfx.play("click")
+		_refresh_houses(idx)
+		_update_hud()
+		_populate_build()
+
+func _refresh_houses(idx: int) -> void:
+	if _house_nodes.has(idx):
+		_house_nodes[idx].queue_free()
+		_house_nodes.erase(idx)
+	var ps: PropertyState = state.props.get(idx)
+	if ps == null or ps.houses <= 0:
+		return
+	var cont := Node3D.new()
+	add_child(cont)
+	var base := _tile_world(idx) + Vector3(0, 0.11, 0)
+	if ps.houses >= 5:
+		cont.add_child(_box(Vector3(0.34, 0.2, 0.2), Color("#c62828"), base + Vector3(0, 0.1, 0)))
+	else:
+		for h in ps.houses:
+			var x := (float(h) - float(ps.houses - 1) / 2.0) * 0.16
+			cont.add_child(_box(Vector3(0.11, 0.14, 0.11), Color("#2e7d32"), base + Vector3(x, 0.07, 0)))
+	_house_nodes[idx] = cont
 
 func _update_hud() -> void:
 	var cur := state.current_player()
@@ -759,6 +919,7 @@ func _declare_bankrupt(p: Player, creditor: Player) -> void:
 			ps.owner_id = -1
 			ps.houses = 0
 			ps.mortgaged = false
+			_refresh_houses(idx)
 	p.owned.clear()
 	if tokens.has(p.id):
 		tokens[p.id].visible = false

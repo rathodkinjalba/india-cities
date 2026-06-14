@@ -100,6 +100,62 @@ func group_house_counts(group: StringName) -> Array[int]:
 		out.append(ps.houses if ps != null else 0)
 	return out
 
+# --- building -----------------------------------------------------------------
+## Colour groups the player fully owns (eligible for building).
+func player_full_groups(player_id: int) -> Array:
+	var out: Array = []
+	for g in board.color_groups:
+		if owns_full_group(player_id, g.id):
+			out.append(g.id)
+	return out
+
+func _group_has_mortgage(group: StringName) -> bool:
+	for idx in board.group_member_indices(group):
+		var ps: PropertyState = props.get(idx)
+		if ps != null and ps.mortgaged:
+			return true
+	return false
+
+func can_build_on(player_id: int, index: int) -> bool:
+	var s := board.get_space(index)
+	if s == null or s.type != SpaceData.Type.STREET:
+		return false
+	if not owns_full_group(player_id, s.color_group):
+		return false
+	var ps: PropertyState = props.get(index)
+	if ps == null or ps.owner_id != player_id:
+		return false
+	if not BuildRules.can_build(ps.houses, group_house_counts(s.color_group), true, _group_has_mortgage(s.color_group)):
+		return false
+	return player_by_id(player_id).cash >= s.house_cost
+
+func build_house(player_id: int, index: int) -> bool:
+	if not can_build_on(player_id, index):
+		return false
+	var s := board.get_space(index)
+	var ps: PropertyState = props.get(index)
+	player_by_id(player_id).cash -= s.house_cost
+	ps.houses += 1
+	return true
+
+func can_sell_on(player_id: int, index: int) -> bool:
+	var s := board.get_space(index)
+	if s == null or s.type != SpaceData.Type.STREET:
+		return false
+	var ps: PropertyState = props.get(index)
+	if ps == null or ps.owner_id != player_id or ps.houses <= 0:
+		return false
+	return BuildRules.can_sell(ps.houses, group_house_counts(s.color_group))
+
+func sell_house(player_id: int, index: int) -> bool:
+	if not can_sell_on(player_id, index):
+		return false
+	var s := board.get_space(index)
+	var ps: PropertyState = props.get(index)
+	player_by_id(player_id).cash += BuildRules.sell_refund(s.house_cost, 1)
+	ps.houses -= 1
+	return true
+
 # --- money ---------------------------------------------------------------------
 ## Returns rent owed for landing on an ownable space (0 if own/unowned/mortgaged).
 func rent_for(index: int, dice_total: int) -> int:

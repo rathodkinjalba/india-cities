@@ -52,3 +52,30 @@ func test_winner_when_one_left() -> void:
 	for i in range(1, 4):
 		gs.players[i].bankrupt = true
 	assert_eq(gs.winner(), gs.players[0])
+
+func test_build_requires_full_group() -> void:
+	var p := gs.players[0]
+	gs.buy(p, 1)
+	assert_false(gs.can_build_on(0, 1), "cannot build without a full colour group")
+
+func test_build_and_even_rule() -> void:
+	var p := gs.players[0]
+	gs.buy(p, 1)
+	gs.buy(p, 3)
+	assert_true(gs.can_build_on(0, 1))
+	var before := p.cash
+	assert_true(gs.build_house(0, 1))      # brown house cost 500
+	assert_eq(p.cash, before - 500)
+	assert_eq(gs.state_for(1).houses, 1)
+	assert_false(gs.can_build_on(0, 1), "even-build blocks a 2nd house until the pair has 1")
+	assert_true(gs.can_build_on(0, 3))
+
+func test_sell_house_refund() -> void:
+	var p := gs.players[0]
+	gs.buy(p, 1)
+	gs.buy(p, 3)
+	gs.build_house(0, 1)
+	var cash := p.cash
+	assert_true(gs.sell_house(0, 1))       # refund 250 (half of 500)
+	assert_eq(p.cash, cash + 250)
+	assert_eq(gs.state_for(1).houses, 0)
