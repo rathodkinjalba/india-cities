@@ -19,14 +19,14 @@ func _ready() -> void:
 	center.add_child(v)
 
 	var title := Label.new()
-	title.text = "INDIA CITIES"
+	title.text = "MONOPOLY"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 64)
 	title.add_theme_color_override("font_color", Color("#f0a020"))
 	v.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "A Monopoly-style board game"
+	subtitle.text = "Real Estate Trading Game"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 26)
 	subtitle.add_theme_color_override("font_color", Color("#cfd8dc"))

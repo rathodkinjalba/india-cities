@@ -1,13 +1,13 @@
 ; Engine configuration file.
-; Godot 4.4 — India Cities (Monopoly-style board game)
+; Godot 4.4 — Monopoly (classic property trading board game)
 ; Keep the version feature tag ("4.4") in sync with the godot-ci image tag in CI.
 
 config_version=5
 
 [application]
 
-config/name="India Cities"
-config/description="An original-branded, Indian-cities-themed property trading board game."
+config/name="Monopoly"
+config/description="A classic property trading board game (pass-and-play, 2-6 players)."
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"

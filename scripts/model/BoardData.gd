@@ -1,7 +1,7 @@
 class_name BoardData
 extends Resource
 ## The whole board: 40 ordered spaces + colour groups + economy constants.
-## Loaded from data/board_india.json so the theme is pure data.
+## Loaded from data/board_classic.json so the theme is pure data.
 
 @export var spaces: Array[SpaceData] = []
 @export var color_groups: Array[ColorGroupData] = []

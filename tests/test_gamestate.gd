@@ -9,7 +9,7 @@ func before_each() -> void:
 
 func test_player_count_and_cash() -> void:
 	assert_eq(gs.players.size(), 4)
-	assert_eq(gs.players[0].cash, 1500)
+	assert_eq(gs.players[0].cash, 15000)
 
 func test_ownable_space_count() -> void:
 	# 22 streets + 4 stations + 2 utilities
@@ -17,8 +17,8 @@ func test_ownable_space_count() -> void:
 
 func test_buy_property() -> void:
 	var p := gs.players[0]
-	assert_true(gs.buy(p, 1))        # Patna, ₹60
-	assert_eq(p.cash, 1440)
+	assert_true(gs.buy(p, 1))        # Old Kent Road, $600
+	assert_eq(p.cash, 14400)
 	assert_eq(gs.owner_of(1), 0)
 	assert_false(gs.buy(p, 1))       # already owned
 
@@ -30,17 +30,17 @@ func test_full_group_detection() -> void:
 
 func test_rent_single_vs_monopoly() -> void:
 	var p := gs.players[0]
-	gs.buy(p, 1)                     # only one brown -> base rent 2
-	assert_eq(gs.rent_for(1, 7), 2)
+	gs.buy(p, 1)                     # only one brown -> base rent 20
+	assert_eq(gs.rent_for(1, 7), 20)
 	gs.buy(p, 3)                     # full brown group -> base doubled
-	assert_eq(gs.rent_for(1, 7), 4)
+	assert_eq(gs.rent_for(1, 7), 40)
 
 func test_station_rent_by_count() -> void:
 	var p := gs.players[0]
 	gs.buy(p, 5)                     # one station
-	assert_eq(gs.rent_for(5, 7), 25)
+	assert_eq(gs.rent_for(5, 7), 250)
 	gs.buy(p, 15)                    # two stations
-	assert_eq(gs.rent_for(5, 7), 50)
+	assert_eq(gs.rent_for(5, 7), 500)
 
 func test_advance_skips_bankrupt() -> void:
 	gs.current_index = 0

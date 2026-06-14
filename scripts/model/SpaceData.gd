@@ -1,6 +1,6 @@
 class_name SpaceData
 extends Resource
-## One board space. Theme (names/prices) lives in data/board_india.json — this is just the shape.
+## One board space. Theme (names/prices) lives in data/board_classic.json — this is just the shape.
 
 enum Type { GO, STREET, STATION, UTILITY, CHANCE, CHEST, TAX, JAIL, FREE_PARKING, GOTO_JAIL }
 

@@ -228,12 +228,12 @@ func _make_button(t: String) -> Button:
 
 func _update_hud() -> void:
 	var cur := state.current_player()
-	turn_label.text = "%s  —  ₹%d" % [cur.name, cur.cash]
+	turn_label.text = "%s  —  $%d" % [cur.name, cur.cash]
 	for i in state.players.size():
 		var p := state.players[i]
 		var tag := "  (OUT)" if p.bankrupt else ""
 		var jail := "  [JAIL]" if p.in_jail else ""
-		player_rows[i].text = "%s: ₹%d%s%s" % [p.name, p.cash, jail, tag]
+		player_rows[i].text = "%s: $%d%s%s" % [p.name, p.cash, jail, tag]
 		player_rows[i].modulate = Color("#666666") if p.bankrupt else p.token_color.lightened(0.2)
 
 func _msg(t: String) -> void:
@@ -297,7 +297,7 @@ func _handle_jail_roll(p: Player, r: Dictionary) -> void:
 			_charge(p, null, state.board.jail_fine)
 			p.in_jail = false
 			p.jail_turns = 0
-			_msg("%s pays ₹%d fine and moves." % [p.name, state.board.jail_fine])
+			_msg("%s pays $%d fine and moves." % [p.name, state.board.jail_fine])
 			await _move_player(p, r.total)
 			var awaiting := await _resolve_landing(p, r.total)
 			if not awaiting:
@@ -334,7 +334,7 @@ func _move_player(p: Player, steps: int) -> void:
 		var to := (p.position + 1) % 40
 		if to == 0:
 			p.cash += state.board.go_salary
-			_msg("%s passed GO  +₹%d" % [p.name, state.board.go_salary])
+			_msg("%s passed GO  +$%d" % [p.name, state.board.go_salary])
 		await _hop(p, to)
 		p.position = to
 	_update_hud()
@@ -366,11 +366,11 @@ func _resolve_landing(p: Player, dice_total: int) -> bool:
 				if p.cash >= s.price:
 					_offer_buy(p, p.position)
 					return true
-				_msg("%s can't afford %s (₹%d)." % [p.name, s.display_name, s.price])
+				_msg("%s can't afford %s ($%d)." % [p.name, s.display_name, s.price])
 			elif owner != p.id:
 				_pay_rent(p, p.position, dice_total)
 		SpaceData.Type.TAX:
-			_msg("%s pays %s of ₹%d." % [p.name, s.display_name, s.tax_amount])
+			_msg("%s pays %s of $%d." % [p.name, s.display_name, s.tax_amount])
 			_charge(p, null, s.tax_amount)
 		SpaceData.Type.CHANCE:
 			return await _do_card(p, state.draw_chance(), dice_total)
@@ -385,7 +385,7 @@ func _offer_buy(p: Player, index: int) -> void:
 	pending_buy_index = index
 	pending_double = state.doubles_count > 0
 	var s := state.board.get_space(index)
-	_msg("%s landed on %s — buy for ₹%d?" % [p.name, s.display_name, s.price])
+	_msg("%s landed on %s — buy for $%d?" % [p.name, s.display_name, s.price])
 	buy_button.visible = true
 	skip_button.visible = true
 	roll_button.disabled = true
@@ -414,7 +414,7 @@ func _pay_rent(p: Player, index: int, dice_total: int) -> void:
 	var owner := state.player_by_id(state.owner_of(index))
 	if amount <= 0 or owner == null:
 		return
-	_msg("%s pays ₹%d rent to %s." % [p.name, amount, owner.name])
+	_msg("%s pays $%d rent to %s." % [p.name, amount, owner.name])
 	_charge(p, owner, amount)
 
 func _charge(payer: Player, payee: Player, amount: int) -> void:
