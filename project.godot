@@ -1,0 +1,27 @@
+; Engine configuration file.
+; Godot 4.4 — India Cities (Monopoly-style board game)
+; Keep the version feature tag ("4.4") in sync with the godot-ci image tag in CI.
+
+config_version=5
+
+[application]
+
+config/name="India Cities"
+config/description="An original-branded, Indian-cities-themed property trading board game."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=6
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

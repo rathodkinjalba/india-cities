@@ -1,0 +1,21 @@
+# Godot 4 ---------------------------------------------------------------
+.godot/
+/build/
+*.translation
+
+# Export/build output
+/android/
+export.cfg
+
+# GUT is cloned by CI (not committed)
+/addons/gut/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/
+.vscode/
+
+# NOTE: export_presets.cfg is intentionally committed (CI needs it).
